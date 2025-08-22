@@ -1,0 +1,7 @@
+.crush
+heat_data_cache*.json
+heat_index_plot*.png
+*.egg-info
+*.sqlite
+.python-version
+rep.json

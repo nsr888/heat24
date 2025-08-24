@@ -2,7 +2,12 @@
 
 A Python application that fetches weather data for multiple locations in Cyprus and generates heat index charts to help determine optimal times for outdoor activities while avoiding the sun.
 
+## Example output
+
+![heat_index_plot_paphos_opt](https://github.com/user-attachments/assets/37ec437b-720e-45f7-80e3-36bfa050ab78)
+
 ## Features
+
 
 - Fetches 7 days of hourly temperature and humidity data for multiple locations in Cyprus
 - Calculates heat index using the NOAA formula

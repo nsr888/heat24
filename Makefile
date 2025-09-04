@@ -26,6 +26,7 @@ install:
 .PHONY: run
 run:
 	$(PYTHON) main.py
+	xdg-open heat_index_plots.pdf
 
 # Lint code
 .PHONY: lint

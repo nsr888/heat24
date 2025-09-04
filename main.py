@@ -19,6 +19,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 import openmeteo_requests
 import requests_cache
@@ -351,8 +352,8 @@ def mk_dt_on(day: pd.Timestamp, hhmm: str, tz: str) -> pd.Timestamp:
 
 def plot_chart(
     agg: pd.DataFrame, tz: str, daily_df: pd.DataFrame, location_name: str
-) -> None:
-    """Plot 24h Heat Index curve with heat index level segments and sunrise/sunset."""
+) -> plt.Figure:
+    """Plot 24h Heat Index curve with heat index level segments and sunrise/sunset. Returns the figure."""
     import matplotlib.dates as mdates
 
     # Build a reference local date (today in that tz)
@@ -494,19 +495,12 @@ def plot_chart(
     # Legend
     ax.legend(loc="upper left")
 
-    # Save plot with location-specific name
-    plot_filename = f"heat_index_plot_{location_name.lower().replace(' ', '_')}.png"
+    # Remove the tight layout and save here; return the figure
     plt.tight_layout()
-    plt.savefig(plot_filename, dpi=300, bbox_inches="tight")
-    print(f"Plot saved as {plot_filename}")
-
-    # Print sunrise/sunset times for user information
-    print(f"Sunrise/sunset information for {location_name}:")
-    print(f"  Sunrise: {sunrise_med // 60:02d}:{sunrise_med % 60:02d}")
-    print(f"  Sunset: {sunset_med // 60:02d}:{sunset_med % 60:02d}")
+    return fig
 
 
-def process_location(location_name: str, lat: float, lon: float) -> None:
+def process_location(location_name: str, lat: float, lon: float) -> plt.Figure:
     """Process a single location: fetch data, compute averages, and plot."""
     print(f"\nProcessing location: {location_name} ({lat}, {lon})")
 
@@ -556,13 +550,40 @@ def process_location(location_name: str, lat: float, lon: float) -> None:
         daily_data = daily_df
 
     agg = per_hour_means(hourly_data)
-    plot_chart(agg, tz_name, daily_data, location_name)
+    
+    # Calculate sunrise/sunset for printing
+    sunrise_mins = [(t.hour * 60 + t.minute) for t in daily_data["sunrise"]]
+    sunset_mins = [(t.hour * 60 + t.minute) for t in daily_data["sunset"]]
+    sunrise_med = int(np.median(sunrise_mins))
+    sunset_med = int(np.median(sunset_mins))
+    
+    # Print sunrise/sunset times for user information
+    print(f"Sunrise/sunset information for {location_name}:")
+    print(f"  Sunrise: {sunrise_med // 60:02d}:{sunrise_med % 60:02d}")
+    print(f"  Sunset: {sunset_med // 60:02d}:{sunset_med % 60:02d}")
+    
+    fig = plot_chart(agg, tz_name, daily_data, location_name)
+    return fig
 
 
 def main():
     """Process all configured locations."""
+    figures = []
     for location_name, (lat, lon) in LOCATIONS.items():
-        process_location(location_name, lat, lon)
+        fig = process_location(location_name, lat, lon)
+        figures.append(fig)
+    
+    # Save all figures to a single PDF
+    pdf_filename = "heat_index_plots.pdf"
+    with PdfPages(pdf_filename) as pdf:
+        for fig in figures:
+            pdf.savefig(fig, dpi=300, bbox_inches="tight")
+    
+    print(f"\nAll plots saved to {pdf_filename}")
+    
+    # Close all figures to free memory
+    for fig in figures:
+        plt.close(fig)
 
 
 if __name__ == "__main__":

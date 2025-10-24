@@ -25,6 +25,7 @@ from requests.adapters import HTTPAdapter
 # Location definitions (Paphos, Novi Sad)
 locations = [
     {"name": "Paphos", "lat": 34.7768, "lon": 32.4245},
+    {"name": "Kampos", "lat": 35.0403, "lon": 32.7324},
     {"name": "Limassol", "lat": 34.7071, "lon": 33.0226},
     {"name": "Nicosia", "lat": 35.1856, "lon": 33.3823},
     {"name": "Novi Sad", "lat": 45.2517, "lon": 19.8369},
@@ -37,6 +38,7 @@ locations = [
     {"name": "Bilbao", "lat": 43.263, "lon": -2.935},
     {"name": "London", "lat": 51.5074, "lon": -0.1278},
     {"name": "Kazan", "lat": 55.7903, "lon": 49.1347},
+    {"name": 'Tokyo', "lat": 35.6762, "lon": 139.6503},
 ]
 
 
@@ -187,8 +189,16 @@ def create_heatmap(data, location_name):
     Generate and save a heatmap visualization from processed data.
     """
     # Define color map based on heat index thresholds
-    colors = ["#90EE90", "#FFFF00", "#FFA500", "#FF0000", "#8B0000"]
-    bounds = [20, 27, 32, 41, 54, 60]
+    colors = [
+        "#00008B",
+        "#4169E1",
+        "#90EE90",
+        "#FFFF00",
+        "#FFA500",
+        "#FF0000",
+        "#8B0000",
+    ]
+    bounds = [-10, 0, 10, 27, 32, 41, 54, 80]
     cmap = ListedColormap(colors)
     norm = BoundaryNorm(bounds, cmap.N)
 
@@ -242,11 +252,13 @@ def create_heatmap(data, location_name):
 
     # Create custom legend
     legend_elements = [
-        Patch(facecolor=colors[0], label="<27°C (Comfortable)"),
-        Patch(facecolor=colors[1], label="27-32°C (Caution)"),
-        Patch(facecolor=colors[2], label="32-41°C (Extreme Caution)"),
-        Patch(facecolor=colors[3], label="41-54°C (Danger)"),
-        Patch(facecolor=colors[4], label=">54°C (Extreme Danger)"),
+        Patch(facecolor=colors[0], label="<0°C (Freezing)"),
+        Patch(facecolor=colors[1], label="0-10°C (Cold)"),
+        Patch(facecolor=colors[2], label="10-27°C (Mild)"),
+        Patch(facecolor=colors[3], label="27-32°C (Caution)"),
+        Patch(facecolor=colors[4], label="32-41°C (Extreme Caution)"),
+        Patch(facecolor=colors[5], label="41-54°C (Danger)"),
+        Patch(facecolor=colors[6], label=">54°C (Extreme Danger)"),
     ]
 
     # Position the legend below the plot
@@ -254,7 +266,7 @@ def create_heatmap(data, location_name):
         handles=legend_elements,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.15),
-        ncol=5,
+        ncol=7,
         frameon=True,
         title="Heat Index Risk Levels",
     )

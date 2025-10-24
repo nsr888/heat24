@@ -9,6 +9,16 @@ annual:
 	$(PYTHON) annual_heat_index.py
 	xdg-open annual_heat_index_plots.pdf
 
+.PHONY: month
+month:
+	$(PYTHON) month_heat_index.py
+	xdg-open month_heat_index_plots.pdf
+
+.PHONY: last_week
+last_week:
+	$(PYTHON) last_week_heat_index.py
+	xdg-open last_week_heat_index.pdf
+
 # Default target
 .PHONY: help
 help:

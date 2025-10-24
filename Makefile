@@ -4,6 +4,11 @@
 PYTHON := uv run python
 PIP := uv pip
 
+.PHONY: annual
+annual:
+	$(PYTHON) annual_heat_index.py
+	xdg-open annual_heat_index_plots.pdf
+
 # Default target
 .PHONY: help
 help:

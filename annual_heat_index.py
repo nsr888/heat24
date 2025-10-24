@@ -16,6 +16,7 @@ import matplotlib
 
 matplotlib.use("Agg")  # Non-interactive backend for server environments
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.patches import Patch
 from urllib3.util.retry import Retry
@@ -24,7 +25,18 @@ from requests.adapters import HTTPAdapter
 # Location definitions (Paphos, Novi Sad)
 locations = [
     {"name": "Paphos", "lat": 34.7768, "lon": 32.4245},
+    {"name": "Limassol", "lat": 34.7071, "lon": 33.0226},
+    {"name": "Nicosia", "lat": 35.1856, "lon": 33.3823},
     {"name": "Novi Sad", "lat": 45.2517, "lon": 19.8369},
+    {"name": "Belgrade", "lat": 44.804, "lon": 20.465},
+    {"name": "Subotica", "lat": 46.1004, "lon": 19.6658},
+    {"name": "Budva", "lat": 42.2864, "lon": 18.8419},
+    {"name": "Sevan", "lat": 40.5556, "lon": 45.0034},
+    {"name": "Yerevan", "lat": 40.1792, "lon": 44.4991},
+    {"name": "Girona", "lat": 41.9794, "lon": 2.8214},
+    {"name": "Bilbao", "lat": 43.263, "lon": -2.935},
+    {"name": "London", "lat": 51.5074, "lon": -0.1278},
+    {"name": "Kazan", "lat": 55.7903, "lon": 49.1347},
 ]
 
 
@@ -181,8 +193,8 @@ def create_heatmap(data, location_name):
     norm = BoundaryNorm(bounds, cmap.N)
 
     # Create figure and axis
-    plt.figure(figsize=(12, 8))
-    ax = plt.gca()
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.gca()
 
     # Plot heatmap
     im = ax.imshow(
@@ -248,23 +260,34 @@ def create_heatmap(data, location_name):
     )
 
     # Adjust layout and save
-    plt.tight_layout(rect=[0, 0.1, 1, 1])
-    filename = f"heat_index_annual_{location_name.lower().replace(' ', '_')}.png"
-    plt.savefig(filename, dpi=150, bbox_inches="tight")
-    plt.close()
-    print(f"Saved {filename}")
+    fig.tight_layout(rect=[0, 0.1, 1, 1])
+    return fig
 
 
 def main():
     """Main processing loop for all locations"""
+    figures = []
     for loc in locations:
         print(f"\nProcessing location: {loc['name']}")
         try:
             om = fetch_archive(loc["lat"], loc["lon"], loc["name"])
             avg_data = process_data(om)
-            create_heatmap(avg_data, loc["name"])
+            fig = create_heatmap(avg_data, loc["name"])
+            figures.append(fig)
         except Exception as e:
             print(f"Error processing {loc['name']}: {e}")
+
+    # Save all heatmaps to a single PDF
+    pdf_filename = "annual_heat_index_plots.pdf"
+    with PdfPages(pdf_filename) as pdf:
+        for fig in figures:
+            pdf.savefig(fig, dpi=150, bbox_inches="tight")
+
+    # Close all figures to free memory
+    for fig in figures:
+        plt.close(fig)
+
+    print(f"Saved all heatmaps to {pdf_filename}")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ annual:
 .PHONY: month
 month:
 	$(PYTHON) month_heat_index.py
-	xdg-open month_heat_index_plots.pdf
+	xdg-open multi_month_heat_index_plots.pdf
 
 .PHONY: last_week
 last_week:

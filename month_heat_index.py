@@ -35,15 +35,16 @@ from retry_requests import retry
 locations = [
     {"name": "Paphos", "lat": 34.7768, "lon": 32.4245},
     {"name": "Karakol", "lat": 42.4901, "lon": 78.3958},
+    {"name": "Naryn", "lat": 41.4284, "lon": 75.9916},
     # {"name": "Kampos", "lat": 35.0403, "lon": 32.7324},
     # {"name": "Limassol", "lat": 34.7071, "lon": 33.0226},
     # {"name": "Nicosia", "lat": 35.1856, "lon": 33.3823},
-    {"name": "Belgrade", "lat": 44.804, "lon": 20.465},
-    {"name": "Budva", "lat": 42.2864, "lon": 18.8419},
+    # {"name": "Belgrade", "lat": 44.804, "lon": 20.465},
+    # {"name": "Budva", "lat": 42.2864, "lon": 18.8419},
     {"name": "Sevan", "lat": 40.5556, "lon": 45.0034},
-    {"name": "Yerevan", "lat": 40.1792, "lon": 44.4991},
-    {"name": "Girona", "lat": 41.9794, "lon": 2.8214},
-    {"name": "Bilbao", "lat": 43.263, "lon": -2.935},
+    # {"name": "Yerevan", "lat": 40.1792, "lon": 44.4991},
+    # {"name": "Girona", "lat": 41.9794, "lon": 2.8214},
+    # {"name": "Bilbao", "lat": 43.263, "lon": -2.935},
 ]
 
 
@@ -109,7 +110,9 @@ def heat_index_celsius(temp_c: np.ndarray, rh: np.ndarray) -> np.ndarray:
 
 def save_to_storage(data: dict, location_name: str, start_date: str) -> None:
     """Save data to local storage with current timestamp."""
-    storage_file = f"heat_data_cache_month_{location_name}_{start_date.replace('-', '')}.json"
+    storage_file = (
+        f"heat_data_cache_month_{location_name}_{start_date.replace('-', '')}.json"
+    )
     storage_data = {
         "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
         "data": data,
@@ -120,7 +123,9 @@ def save_to_storage(data: dict, location_name: str, start_date: str) -> None:
 
 def load_from_storage(location_name: str, start_date: str) -> dict | None:
     """Load data from local storage if it exists and is less than 24 hours old."""
-    storage_file = f"heat_data_cache_month_{location_name}_{start_date.replace('-', '')}.json"
+    storage_file = (
+        f"heat_data_cache_month_{location_name}_{start_date.replace('-', '')}.json"
+    )
     if not os.path.exists(storage_file):
         return None
 
@@ -146,7 +151,9 @@ def load_from_storage(location_name: str, start_date: str) -> dict | None:
 # -----------------------------
 # Fetch data from Open-Meteo Archive API
 # -----------------------------
-def fetch_data(lat: float, lon: float, start_date: str, end_date: str) -> Tuple[pd.DataFrame, str, pd.DataFrame]:
+def fetch_data(
+    lat: float, lon: float, start_date: str, end_date: str
+) -> Tuple[pd.DataFrame, str, pd.DataFrame]:
     """Fetch hourly temperature & RH for given past month + sunrise/sunset daily; return df (local time) and tz name."""
     cache_session = requests_cache.CachedSession(".cache", expire_after=3600)
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
@@ -186,7 +193,7 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str) -> Tuple[
             "temperature_c": t_values,
             "rh_pct": rh_values,
         },
-        index=time_index
+        index=time_index,
     )
 
     # Daily sunrise/sunset
@@ -195,7 +202,9 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str) -> Tuple[
     sunset_times = daily.Variables(1).ValuesInt64AsNumpy()  # sunset
 
     # Convert to datetime objects
-    sunrise_dates = pd.to_datetime(sunrise_times, unit="s", utc=True).tz_convert(tz_name)
+    sunrise_dates = pd.to_datetime(sunrise_times, unit="s", utc=True).tz_convert(
+        tz_name
+    )
     sunset_dates = pd.to_datetime(sunset_times, unit="s", utc=True).tz_convert(tz_name)
 
     daily_df = pd.DataFrame({"sunrise": sunrise_dates, "sunset": sunset_dates})
@@ -362,9 +371,14 @@ def mk_dt_on(day: pd.Timestamp, hhmm: str, tz: str) -> pd.Timestamp:
     )
 
 
-
-
-def process_location(location_name: str, lat: float, lon: float, start_date: str, end_date: str, days_in_month: int) -> pd.DataFrame:
+def process_location(
+    location_name: str,
+    lat: float,
+    lon: float,
+    start_date: str,
+    end_date: str,
+    days_in_month: int,
+) -> pd.DataFrame:
     """Process a single location: fetch data, compute averages."""
     print(f"\nProcessing location: {location_name} ({lat}, {lon})")
 
@@ -379,7 +393,7 @@ def process_location(location_name: str, lat: float, lon: float, start_date: str
                 "temperature_c": cached_data["hourly_data"]["temperature_c"],
                 "rh_pct": cached_data["hourly_data"]["rh_pct"],
             },
-            index=pd.to_datetime(cached_data["hourly_data"]["time"])
+            index=pd.to_datetime(cached_data["hourly_data"]["time"]),
         ).sort_index()
 
         daily_data = pd.DataFrame(
@@ -424,9 +438,11 @@ def main():
     """Process all configured locations for the previous full month."""
     # Define months to process (year, month tuples)
     months_to_process = [
+        (2025, 5),
         (2025, 6),  # June
         (2025, 7),  # July
-        (2025, 8)   # August
+        (2025, 8),  # August
+        (2025, 9),
     ]
 
     pdf_filename = "multi_month_heat_index_plots.pdf"
@@ -436,11 +452,24 @@ def main():
             start_date = f"{year}-{month:02d}-01"
             end_date = f"{year}-{month:02d}-{days_in_month:02d}"
             month_name = calendar.month_name[month]
-            print(f"Processing data for {month_name} {year} ({start_date} to {end_date})")
+            print(
+                f"Processing data for {month_name} {year} ({start_date} to {end_date})"
+            )
 
             fig, ax = plt.subplots(figsize=(12, 6))
 
-            colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+            colors = [
+                "blue",
+                "red",
+                "green",
+                "orange",
+                "purple",
+                "brown",
+                "pink",
+                "gray",
+                "olive",
+                "cyan",
+            ]
             color_idx = 0
 
             # First pass to compute global min and max and store data
@@ -450,16 +479,22 @@ def main():
                 location_name = loc["name"]
                 lat = loc["lat"]
                 lon = loc["lon"]
-                agg = process_location(location_name, lat, lon, start_date, end_date, days_in_month)
-                hi_hourly = heat_index_celsius(agg["temperature_c"].values, agg["rh_pct"].values)
-                data_by_location[location_name] = {'agg': agg, 'hi': hi_hourly}
+                agg = process_location(
+                    location_name, lat, lon, start_date, end_date, days_in_month
+                )
+                hi_hourly = heat_index_celsius(
+                    agg["temperature_c"].values, agg["rh_pct"].values
+                )
+                data_by_location[location_name] = {"agg": agg, "hi": hi_hourly}
                 all_hi.append(hi_hourly)
 
             global_min_hi = min(np.min(hi) for hi in all_hi)
             global_max_hi = max(np.max(hi) for hi in all_hi)
 
             # Define and add background fill bands first (background)
-            print(f"Global min heat index: {global_min_hi:.1f}°C, max: {global_max_hi:.1f}°C")
+            print(
+                f"Global min heat index: {global_min_hi:.1f}°C, max: {global_max_hi:.1f}°C"
+            )
 
             added_labels = []
 
@@ -467,10 +502,12 @@ def main():
             if global_min_hi < 0:
                 lower = global_min_hi
                 upper = 0
-                color = 'blue'
-                label = 'Very Cold (<0°C)'
+                color = "blue"
+                label = "Very Cold (<0°C)"
                 alpha = 0.4  # Further increased for visibility
-                ax.axhspan(lower, upper, xmin=0, xmax=1, color=color, alpha=alpha, label=label)
+                ax.axhspan(
+                    lower, upper, xmin=0, xmax=1, color=color, alpha=alpha, label=label
+                )
                 added_labels.append(label)
                 print(f"Added Very Cold fill: {lower:.1f} to {upper:.1f}")
 
@@ -478,10 +515,18 @@ def main():
             lower_cold = max(0, global_min_hi)
             upper_cold = min(10, global_max_hi)
             if lower_cold < upper_cold:
-                color = 'lightblue'
-                label = 'Cold (0-10°C)'
+                color = "lightblue"
+                label = "Cold (0-10°C)"
                 alpha = 0.4  # Further increased
-                ax.axhspan(lower_cold, upper_cold, xmin=0, xmax=1, color=color, alpha=alpha, label=label)
+                ax.axhspan(
+                    lower_cold,
+                    upper_cold,
+                    xmin=0,
+                    xmax=1,
+                    color=color,
+                    alpha=alpha,
+                    label=label,
+                )
                 added_labels.append(label)
                 print(f"Added Cold fill: {lower_cold:.1f} to {upper_cold:.1f}")
 
@@ -489,32 +534,60 @@ def main():
             lower_caution = max(27, global_min_hi)
             upper_caution = min(32, global_max_hi)
             if lower_caution < upper_caution:
-                color = 'yellow'
-                label = 'Caution (27-32°C)'
+                color = "yellow"
+                label = "Caution (27-32°C)"
                 alpha = 0.8  # Increased for more intensity
-                ax.axhspan(lower_caution, upper_caution, xmin=0, xmax=1, color=color, alpha=alpha, label=label)
+                ax.axhspan(
+                    lower_caution,
+                    upper_caution,
+                    xmin=0,
+                    xmax=1,
+                    color=color,
+                    alpha=alpha,
+                    label=label,
+                )
                 added_labels.append(label)
-                print(f"Added intensified Caution fill: {lower_caution:.1f} to {upper_caution:.1f}")
+                print(
+                    f"Added intensified Caution fill: {lower_caution:.1f} to {upper_caution:.1f}"
+                )
 
             # Extreme Caution: 32-41°C - yellow
             lower_ext_caution = max(32, global_min_hi)
             upper_ext_caution = min(41, global_max_hi)
             if lower_ext_caution < upper_ext_caution:
-                color = 'orange'
-                label = 'Extreme Caution (32-41°C)'
+                color = "orange"
+                label = "Extreme Caution (32-41°C)"
                 alpha = 0.6  # Further increased
-                ax.axhspan(lower_ext_caution, upper_ext_caution, xmin=0, xmax=1, color=color, alpha=alpha, label=label)
+                ax.axhspan(
+                    lower_ext_caution,
+                    upper_ext_caution,
+                    xmin=0,
+                    xmax=1,
+                    color=color,
+                    alpha=alpha,
+                    label=label,
+                )
                 added_labels.append(label)
-                print(f"Added Extreme Caution fill: {lower_ext_caution:.1f} to {upper_ext_caution:.1f}")
+                print(
+                    f"Added Extreme Caution fill: {lower_ext_caution:.1f} to {upper_ext_caution:.1f}"
+                )
 
             # Danger: 41-54°C - orange
             lower_danger = max(41, global_min_hi)
             upper_danger = min(54, global_max_hi)
             if lower_danger < upper_danger:
-                color = 'orangered'
-                label = 'Danger (41-54°C)'
+                color = "orangered"
+                label = "Danger (41-54°C)"
                 alpha = 0.7  # Further increased
-                ax.axhspan(lower_danger, upper_danger, xmin=0, xmax=1, color=color, alpha=alpha, label=label)
+                ax.axhspan(
+                    lower_danger,
+                    upper_danger,
+                    xmin=0,
+                    xmax=1,
+                    color=color,
+                    alpha=alpha,
+                    label=label,
+                )
                 added_labels.append(label)
                 print(f"Added Danger fill: {lower_danger:.1f} to {upper_danger:.1f}")
 
@@ -522,34 +595,86 @@ def main():
             lower_ext_danger = max(54, global_min_hi)
             upper_ext_danger = global_max_hi
             if lower_ext_danger < upper_ext_danger:
-                color = 'red'
-                label = 'Extreme Danger (>54°C)'
+                color = "red"
+                label = "Extreme Danger (>54°C)"
                 alpha = 0.8  # Further increased
-                ax.axhspan(lower_ext_danger, upper_ext_danger, xmin=0, xmax=1, color=color, alpha=alpha, label=label)
+                ax.axhspan(
+                    lower_ext_danger,
+                    upper_ext_danger,
+                    xmin=0,
+                    xmax=1,
+                    color=color,
+                    alpha=alpha,
+                    label=label,
+                )
                 added_labels.append(label)
-                print(f"Added Extreme Danger fill: {lower_ext_danger:.1f} to {upper_ext_danger:.1f}")
+                print(
+                    f"Added Extreme Danger fill: {lower_ext_danger:.1f} to {upper_ext_danger:.1f}"
+                )
             else:
                 print("No Extreme Danger fill (max < 54°C)")
 
             # Now plot lines on top
-            colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+            colors = [
+                "blue",
+                "red",
+                "green",
+                "orange",
+                "purple",
+                "brown",
+                "pink",
+                "gray",
+                "olive",
+                "cyan",
+            ]
             hours = range(24)
 
             for i, loc in enumerate(locations):
                 location_name = loc["name"]
-                hi_hourly = data_by_location[location_name]['hi']
-                ax.plot(hours, hi_hourly, label=location_name, color=colors[i % len(colors)], linewidth=2, marker='o')
+                hi_hourly = data_by_location[location_name]["hi"]
+                ax.plot(
+                    hours,
+                    hi_hourly,
+                    label=location_name,
+                    color=colors[i % len(colors)],
+                    linewidth=2,
+                    marker="o",
+                )
 
             ax.set_xlabel("Hour of Day")
             ax.set_ylabel("Heat Index (°C)")
             ax.set_title(f"Monthly Average 24h Heat Index - {month_name} {year}")
             ax.set_xticks(range(0, 25, 2))
             ax.grid(True, alpha=0.3)
-            ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=8)
+            ax.legend(loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=8)
+
+            # Add list of comfortable cities where max HI <27°C during the day
+            comfortable_cities = [
+                name
+                for name, data in data_by_location.items()
+                if np.max(data["hi"]) < 27
+            ]
+            comfortable_text = (
+                "Comfortable Cities (Max HI <27°C):\n" + ", ".join(comfortable_cities)
+                if comfortable_cities
+                else "None"
+            )
+            ax.text(
+                1.05,
+                0.4,
+                comfortable_text,
+                transform=ax.transAxes,
+                va="top",
+                ha="left",
+                fontsize=7,
+                family="monospace",
+            )
 
             # Adjust y-limits to include full range
             ax.set_ylim(global_min_hi - 1, global_max_hi + 2)
-            print(f"Y-axis limits set to: {global_min_hi - 1:.1f} to {global_max_hi + 2:.1f}")
+            print(
+                f"Y-axis limits set to: {global_min_hi - 1:.1f} to {global_max_hi + 2:.1f}"
+            )
 
             plt.tight_layout()
 

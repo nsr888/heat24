@@ -88,6 +88,23 @@ def heat_index_celsius(temp_c: np.ndarray, rh: np.ndarray) -> np.ndarray:
     return (HI - 32.0) * 5.0 / 9.0
 
 
+def hybrid_temperature_index(temp_c: np.ndarray, rh: np.ndarray) -> np.ndarray:
+    """
+    Calculate hybrid temperature index:
+    - Use raw temperature when temp < 27°C
+    - Use heat index when temp >= 27°C
+    This provides realistic temperature display in cool conditions
+    and heat stress information in hot conditions.
+    """
+    # Calculate heat index for all temperatures
+    hi = heat_index_celsius(temp_c, rh)
+
+    # Use temperature for cool conditions, heat index for hot conditions
+    result = np.where(temp_c < 27.0, temp_c, hi)
+
+    return result
+
+
 def save_to_storage(data: dict, location_name: str) -> None:
     """Save data to local storage with current timestamp."""
     storage_file = STORAGE_FILE_TEMPLATE.format(location_name)
@@ -216,13 +233,13 @@ def determine_activity_windows(
         Tuple of (morning_walk, evening_walk, avoid_period)
         Each is a tuple of (label, color, start_time, duration)
     """
-    # Calculate heat index for each hour
-    heat_index_values = heat_index_celsius(
+    # Calculate hybrid temperature/heat index for each hour
+    hybrid_values = hybrid_temperature_index(
         agg["temperature_c"].values, agg["rh_pct"].values
     )
 
-    # Create a dataframe with hours and heat index
-    hourly_heat = pd.DataFrame({"hour": range(24), "heat_index": heat_index_values})
+    # Create a dataframe with hours and hybrid temperature/heat index
+    hourly_heat = pd.DataFrame({"hour": range(24), "heat_index": hybrid_values})
 
     # Define safe heat index threshold (in Celsius)
     # According to NOAA:
@@ -234,10 +251,10 @@ def determine_activity_windows(
 
     # Calculate rolling average over 2 hours to determine "too hot" periods
     # This considers the current hour and the next hour for a more robust assessment
-    heat_index_extended = np.concatenate(
-        [heat_index_values, [heat_index_values[0]]]
+    hybrid_extended = np.concatenate(
+        [hybrid_values, [hybrid_values[0]]]
     )  # Wrap around
-    rolling_avg = (heat_index_extended[:-1] + heat_index_extended[1:]) / 2
+    rolling_avg = (hybrid_extended[:-1] + hybrid_extended[1:]) / 2
 
     # Find hours that are "too hot" based on the rolling average
     too_hot_mask = rolling_avg >= TOO_HOT_THRESHOLD
@@ -353,7 +370,7 @@ def mk_dt_on(day: pd.Timestamp, hhmm: str, tz: str) -> pd.Timestamp:
 def plot_chart(
     agg: pd.DataFrame, tz: str, daily_df: pd.DataFrame, location_name: str
 ) -> plt.Figure:
-    """Plot 24h Heat Index curve with heat index level segments and sunrise/sunset. Returns the figure."""
+    """Plot 24h Temperature/Heat Index curve with heat index level segments and sunrise/sunset. Returns the figure."""
     import matplotlib.dates as mdates
 
     # Build a reference local date (today in that tz)
@@ -364,14 +381,14 @@ def plot_chart(
     times_hourly = [ref_day + pd.Timedelta(hours=h) for h in range(24)]
     times_smooth = [ref_day + pd.Timedelta(minutes=m) for m in range(0, 24 * 60, 10)]
 
-    # Get hourly heat index values
-    hi_hourly = heat_index_celsius(agg["temperature_c"].values, agg["rh_pct"].values)
+    # Get hourly values using hybrid calculation (temperature < 27°C, heat index ≥ 27°C)
+    hybrid_hourly = hybrid_temperature_index(agg["temperature_c"].values, agg["rh_pct"].values)
 
-    # Interpolate to get smooth heat index values for filling
-    hi_smooth = np.interp(
+    # Interpolate to get smooth hybrid values for filling
+    hybrid_smooth = np.interp(
         [t.hour + t.minute / 60.0 for t in times_smooth],
         [t.hour + t.minute / 60.0 for t in times_hourly],
-        hi_hourly,
+        hybrid_hourly,
     )
 
     # Calculate median sunrise/sunset hours for display
@@ -392,15 +409,15 @@ def plot_chart(
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(
         times_hourly,
-        hi_hourly,
-        label="Heat Index (°C)",
+        hybrid_hourly,
+        label="Temperature/Heat Index (°C)",
         color="black",
         linewidth=2,
         marker="o",
     )
-    ax.set_ylabel("Heat Index (°C)")
+    ax.set_ylabel("Temperature/Heat Index (°C)")
     ax.set_xlabel(f"Local time ({tz})")
-    ax.set_title(f"24h Heat Index (7-day hourly averages) — {location_name}")
+    ax.set_title(f"24h Temperature/Heat Index (7-day hourly averages) — {location_name}")
 
     # Set x-axis limits to show full 24-hour period
     ax.set_xlim(ref_day, ref_day + pd.Timedelta(hours=24))
@@ -423,13 +440,13 @@ def plot_chart(
     # Create time points for filling (smooth points)
     time_points = np.array(times_smooth)
 
-    # Fill areas based on heat index levels using smooth interpolated values
+    # Fill areas based on temperature/heat index levels using smooth interpolated values
     # Green: Suitable for activity (below caution level)
     ax.fill_between(
         time_points,
-        np.min(hi_smooth) - 5,
-        hi_smooth,
-        where=(hi_smooth < caution_threshold),
+        np.min(hybrid_smooth) - 5,
+        hybrid_smooth,
+        where=(hybrid_smooth < caution_threshold),
         color="green",
         alpha=0.3,
         label="Suitable for activity",
@@ -438,10 +455,10 @@ def plot_chart(
     # Yellow: Caution (27-32°C)
     ax.fill_between(
         time_points,
-        np.min(hi_smooth) - 5,
-        hi_smooth,
-        where=(hi_smooth >= caution_threshold)
-        & (hi_smooth < extreme_caution_threshold),
+        np.min(hybrid_smooth) - 5,
+        hybrid_smooth,
+        where=(hybrid_smooth >= caution_threshold)
+        & (hybrid_smooth < extreme_caution_threshold),
         color="yellow",
         alpha=0.5,
         label="Caution",
@@ -450,9 +467,9 @@ def plot_chart(
     # Deep Yellow: Extreme Caution (32-41°C)
     ax.fill_between(
         time_points,
-        np.min(hi_smooth) - 5,
-        hi_smooth,
-        where=(hi_smooth >= extreme_caution_threshold) & (hi_smooth < danger_threshold),
+        np.min(hybrid_smooth) - 5,
+        hybrid_smooth,
+        where=(hybrid_smooth >= extreme_caution_threshold) & (hybrid_smooth < danger_threshold),
         color="#FFD700",
         alpha=0.6,
         label="Extreme Caution",
@@ -461,9 +478,9 @@ def plot_chart(
     # Orange: Danger (41-54°C)
     ax.fill_between(
         time_points,
-        np.min(hi_smooth) - 5,
-        hi_smooth,
-        where=(hi_smooth >= danger_threshold) & (hi_smooth < extreme_danger_threshold),
+        np.min(hybrid_smooth) - 5,
+        hybrid_smooth,
+        where=(hybrid_smooth >= danger_threshold) & (hybrid_smooth < extreme_danger_threshold),
         color="orange",
         alpha=0.7,
         label="Danger",
@@ -472,9 +489,9 @@ def plot_chart(
     # Red: Extreme Danger (above 54°C)
     ax.fill_between(
         time_points,
-        np.min(hi_smooth) - 5,
-        hi_smooth,
-        where=(hi_smooth >= extreme_danger_threshold),
+        np.min(hybrid_smooth) - 5,
+        hybrid_smooth,
+        where=(hybrid_smooth >= extreme_danger_threshold),
         color="red",
         alpha=0.8,
         label="Extreme Danger",
@@ -574,7 +591,7 @@ def main():
         figures.append(fig)
     
     # Save all figures to a single PDF
-    pdf_filename = "heat_index_plots.pdf"
+    pdf_filename = "last_week_heat_index.pdf"
     with PdfPages(pdf_filename) as pdf:
         for fig in figures:
             pdf.savefig(fig, dpi=300, bbox_inches="tight")

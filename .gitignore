@@ -1,7 +1,11 @@
+__pycache__/
+debug*.py
 .crush
-heat_data_cache*.json
 heat_index_plot*.png
 *.egg-info
 *.sqlite
 .python-version
 rep.json
+# cache
+heat_data_cache*.json
+archive-weather-*.json
